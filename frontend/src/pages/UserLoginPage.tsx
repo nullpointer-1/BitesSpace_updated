@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { User, Phone, Shield, Mail } from "lucide-react"; // Import Mail icon
+import { User, Phone, Shield, Mail } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { useUser } from '@/context/UserContext'; // Import useUser hook
-import axios from "axios"; // Import axios
+import { useUser } from '@/context/UserContext'; // Correct import for useUser hook
+import axios from "axios";
 
 type LoginStep = "mobile" | "otp" | "name";
 
@@ -17,7 +17,7 @@ const UserLoginPage = () => {
   const [mobileNumber, setMobileNumber] = useState("");
   const [otp, setOtp] = useState("");
   const [userName, setUserName] = useState("");
-  const [userEmail, setUserEmail] = useState(""); // NEW STATE FOR EMAIL
+  const [userEmail, setUserEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { login } = useUser(); // Use the login function from UserContext
@@ -38,7 +38,7 @@ const UserLoginPage = () => {
 
     try {
       const response = await axios.post("http://localhost:8989/otp/send", { mobileNumber });
-      
+
       if (response.data.success) {
         toast({
           title: "OTP Sent",
@@ -79,7 +79,7 @@ const UserLoginPage = () => {
 
     try {
       const response = await axios.post("http://localhost:8989/otp/verify", { mobileNumber, otp });
-      
+
       if (response.data.success) {
         if (response.data.isNewUser) {
           toast({
@@ -89,8 +89,11 @@ const UserLoginPage = () => {
           });
           // For new users, we will capture name and email in the next step.
           // The userId and mobileNumber are known from this step.
-          login({ 
-            id: response.data.userId, 
+          // We call login here with partial data (empty name/email) because `useUser` needs to know
+          // that a user session has started for the `ProtectedRoute` to work, even if data is incomplete.
+          // The full user data will be updated in the 'name' step.
+          login({
+            id: response.data.userId,
             name: "", // Name will be set in next step
             mobileNumber: response.data.mobileNumber,
             email: "" // Email will be set in next step
@@ -109,7 +112,7 @@ const UserLoginPage = () => {
             mobileNumber: response.data.mobileNumber,
             email: response.data.userEmail // Ensure backend returns userEmail
           });
-          navigate("/dashboard"); 
+          navigate("/dashboard");
         }
       } else {
         toast({
@@ -156,12 +159,12 @@ const UserLoginPage = () => {
 
     try {
       // Make API call to register user's name and email
-      const response = await axios.post("http://localhost:8989/otp/register", { 
-        mobileNumber, 
+      const response = await axios.post("http://localhost:8989/otp/register", {
+        mobileNumber,
         name: userName,
-        email: userEmail // Send email to backend
+        email: userEmail
       });
-      
+
       if (response.data.success) {
         toast({
           title: "Registration Complete",
@@ -173,7 +176,7 @@ const UserLoginPage = () => {
           id: response.data.userId,
           name: response.data.userName,
           mobileNumber: response.data.mobileNumber,
-          email: response.data.userEmail // Ensure backend sends back userEmail
+          email: response.data.userEmail
         });
         navigate("/dashboard"); // Navigate to the dashboard
       } else {
@@ -302,7 +305,7 @@ const UserLoginPage = () => {
         />
       </div>
 
-      {/* NEW EMAIL INPUT FIELD */}
+      {/* EMAIL INPUT FIELD */}
       <div className="space-y-2">
         <Label htmlFor="email">Email Address</Label>
         <Input
