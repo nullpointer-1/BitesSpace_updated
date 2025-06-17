@@ -1,8 +1,7 @@
-// src/pages/StallPage.tsx
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
-import StallHeader from "@/components/stall/StallHeader";
+import StallHeader from "@/components/stall/StallHeader"; // Correct import path
 import StallHero from "@/components/stall/StallHero";
 import MenuSection from "@/components/stall/MenuSection";
 import { useCart } from '@/context/CartContext';
@@ -52,16 +51,26 @@ interface Product {
 }
 
 interface MenuItem extends Product {
-  image: string;
+  image: string; // MenuItem uses 'image' while Product uses 'imageUrl'
 }
 
-interface StallHeroDisplayData { /* ... as before ... */ }
+// Assuming StallHeroDisplayData is defined elsewhere or directly mapped from Shop
+interface StallHeroDisplayData {
+  name: string;
+  image: string;
+  rating: number;
+  time: string;
+  distance: string;
+  cuisine: string;
+  speciality: string;
+  isVeg: boolean;
+}
 // --- End of Interfaces ---
 
 
 const StallPage = () => {
-  const { stallId } = useParams<{ stallId: string }>(); 
-  const { cart, currentShopId, currentShopName, addToCart, removeFromCart, clearCartAndAddProduct, getCartItemQuantity, totalItemsInCart } = useCart(); // Use totalItemsInCart from context
+  const { stallId } = useParams<{ stallId: string }>();
+  const { cart, currentShopId, currentShopName, addToCart, removeFromCart, clearCartAndAddProduct, getCartItemQuantity, totalItemsInCart } = useCart();
 
   const [stall, setStall] = useState<StallHeroDisplayData | null>(null);
   const [items, setItems] = useState<MenuItem[]>([]);
@@ -101,16 +110,17 @@ const StallPage = () => {
         setStall(mappedStallForHero);
 
         const itemsResponse = await axios.get<Product[]>(`http://localhost:8989/api/products/shop/${stallId}`);
-        
+
         if (Array.isArray(itemsResponse.data)) {
           const fetchedProducts: Product[] = itemsResponse.data;
           const mappedItems: MenuItem[] = fetchedProducts.map(item => ({
             ...item,
             image: item.imageUrl
-            // Make sure product.shopId is available from backend if you need it.
-            // If not directly available, you'll need to fetch the shop details here
-            // or modify your Product DTO to include shopId.
-            // For now, let's assume `product.shopId` exists.
+            // The `shopId` for Product is crucial for cart logic.
+            // If your backend doesn't return `shopId` directly in the Product DTO,
+            // you'll need to explicitly add it here from the `stallId` or ensure
+            // your backend product DTO for `/api/products/shop/{stallId}` includes it.
+            // For now, assuming `item.shopId` exists from backend response.
           }));
           setItems(mappedItems);
         } else {
@@ -122,9 +132,9 @@ const StallPage = () => {
         console.error("Error fetching stall data:", err);
         if (axios.isAxiosError(err) && err.response) {
             if (err.response.status === 404) {
-                setError("Stall not found.");
+              setError("Stall not found.");
             } else {
-                setError(`Failed to load stall details: ${err.response.statusText || err.message}`);
+              setError(`Failed to load stall details: ${err.response.statusText || err.message}`);
             }
         } else {
             setError("An unexpected error occurred while loading stall details.");
@@ -139,9 +149,13 @@ const StallPage = () => {
 
   const handleAddToCart = (item: MenuItem) => {
     // Pass the full product object to addToCart in context
-    const result = addToCart(item);
+    // IMPORTANT: Ensure `item.shopId` is correctly populated here.
+    // If not, you might need to add `shopId: parseInt(stallId as string)`
+    // to the item before passing it to `addToCart`.
+    const productWithShopId: Product = { ...item, shopId: parseInt(stallId as string) };
+    const result = addToCart(productWithShopId);
     if (result === 'mismatch') {
-      setProductToClearAndAdd(item);
+      setProductToClearAndAdd(productWithShopId); // Pass product with shopId
       setShowMismatchDialog(true);
     }
   };
@@ -172,7 +186,7 @@ const StallPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <StallHeader stallName={stall.name} totalItems={totalItemsInCart} /> {/* Use totalItemsInCart from context */}
+      <StallHeader stallName={stall.name} totalItems={totalItemsInCart} />
       <StallHero stall={stall} />
       <MenuSection
         items={items}
