@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"; // Import useEffect
 import { Link } from "react-router-dom";
-import { ShoppingCart, MapPin, Clock, Star } from "lucide-react";
+import { ShoppingCart, MapPin, Clock, Star,ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import axios from "axios"; // Import axios for HTTP requests
@@ -69,6 +69,14 @@ const Index = () => {
               <Badge className="ml-3 bg-green-100 text-green-800">Pickup Only</Badge>
             </div>
             <div className="flex items-center space-x-4">
+            
+                <Link to="/dashboard">
+                  <Button variant="outline" size="sm" className="flex items-center gap-2">
+                    <ArrowLeft className="h-4 w-4" />
+                    Back to Dashboard
+                  </Button>
+                </Link>
+              
               <Link to="/cart" className="relative">
                 <Button variant="outline" size="sm" className="flex items-center gap-2">
                   <ShoppingCart className="h-4 w-4" />
