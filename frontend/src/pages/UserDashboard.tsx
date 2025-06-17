@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, User as UserIcon, History, Heart, MapPin, CreditCard, Settings,Search, Bell, HelpCircle, Star, Clock, Package, Mail } from "lucide-react";
+import { ArrowLeft, User as UserIcon, History, Heart, MapPin, CreditCard, Settings, Search, Bell, HelpCircle, Star, Clock, Package, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUser } from "@/context/UserContext"; // Import useUser hook
 import axios from "axios"; // Import axios for API calls
 
-// --- Interfaces (match your backend DTOs/Entities) ---
+// --- Interfaces (match your backend DTOs/Entities and UserContext) ---
 
 interface OrderItemDocument {
   productId: string; // Assuming product ID is string from backend
@@ -39,63 +39,75 @@ interface OrderDocument {
   items: OrderItemDocument[];
 }
 
+// Ensure this User interface matches the one in UserContext.tsx
 interface User {
-  id: string | null; // Frontend might handle it as string, convert to number for backend calls
-  name: string | null;
-  mobileNumber: string | null;
-  email?: string | null; // Now expecting email from UserContext
+  id: number; // User ID is a number (Long) from backend, ensure consistency
+  name: string;
+  mobileNumber: string;
+  email?: string; // Make sure this property exists if you use it from context
 }
 
 const UserDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
-  const { user, logout } = useUser(); // Get user data and logout function from context
+  // Destructure user, logout, isAuthenticated, and the new isLoading from useUser hook
+  const { user, logout, isAuthenticated, isLoading } = useUser();
   const [userOrders, setUserOrders] = useState<OrderDocument[]>([]); // State for dynamic orders
   const [orderLoading, setOrderLoading] = useState(true); // Loading state for orders
   const [orderError, setOrderError] = useState<string | null>(null); // Error state for orders
   const navigate = useNavigate(); // For redirection
 
-  // Redirect to login if user is not logged in (user.id is null or undefined)
+  // --- Authentication and Redirection Logic ---
+  // This useEffect will run when isLoading or isAuthenticated changes.
+  // It ensures redirection ONLY happens after the context has finished loading (isLoading is false).
   useEffect(() => {
-    if (!user || !user.id) {
-      navigate("/login/user"); // Redirect to your user login page
+    if (!isLoading && !isAuthenticated) {
+      // If loading is complete AND user is not authenticated, navigate to login
+      navigate("/login/user");
     }
-  }, [user, navigate]); // Depend on user and navigate
+  }, [isLoading, isAuthenticated, navigate]); // Depend on these states and navigate
 
   // --- Fetch User-Specific Order History ---
   useEffect(() => {
     const fetchUserOrders = async () => {
-      if (!user || !user.id) {
-        setOrderLoading(false);
-        return;
-      }
-      setOrderLoading(true);
-      setOrderError(null);
-      try {
-        // Convert user.id from string to number if your backend expects a Long
-        const userIdAsNumber = Number(user.id); 
-        // Assuming a new API endpoint for fetching orders by user ID
-        const response = await axios.get<OrderDocument[]>(`http://localhost:8989/api/orders/user/${userIdAsNumber}`);
-        setUserOrders(response.data);
-      } catch (err: any) {
-        console.error("Error fetching user orders:", err);
-        setOrderError("Failed to load your order history. Please try again.");
-      } finally {
+      // Only attempt to fetch orders if loading is complete AND the user is authenticated
+      if (!isLoading && isAuthenticated && user) { // Also check 'user' to ensure it's not null before accessing user.id
+        setOrderLoading(true); // Start loading orders
+        setOrderError(null); // Clear previous errors
+        try {
+          // Convert user.id from number to string if your backend expects a Long (though defined as number here)
+          // Make sure your User interface's `id` type matches what `user.id` actually holds.
+          // If user.id is string from backend but you store as number, convert.
+          // Based on your User interface `id: number`, this should be fine.
+          const userId = user.id; // Assuming user.id is already a number
+
+          // Make the API call to fetch orders for the specific user
+          const response = await axios.get<OrderDocument[]>(`http://localhost:8989/api/orders/user/${userId}`);
+          setUserOrders(response.data); // Update the orders state
+        } catch (err: any) {
+          console.error("Error fetching user orders:", err);
+          setOrderError("Failed to load your order history. Please try again.");
+        } finally {
+          setOrderLoading(false); // End loading, regardless of success or failure
+        }
+      } else if (!isLoading && !isAuthenticated) {
+        // If loading is done and user is not authenticated, don't try to fetch orders.
+        // Set orderLoading to false to avoid perpetual loading spinner if the user is logged out.
         setOrderLoading(false);
       }
     };
 
     fetchUserOrders();
-    // Re-fetch orders if user changes (e.g., after login/logout context update)
-  }, [user]); 
+  }, [user, isLoading, isAuthenticated]); // Re-run if user, isLoading, or isAuthenticated changes
 
+  // Helper function to determine badge color based on order status
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) { // Ensure case-insensitive comparison
-      case "completed": 
+      case "completed":
       case "delivered": return "default"; // Assuming 'delivered' maps to 'completed' status
-      case "preparing": 
+      case "preparing":
       case "placed":
       case "ready_for_pickup": return "secondary"; // Adjusted for backend statuses
-      case "cancelled": 
+      case "cancelled":
       case "rejected": return "destructive"; // Adjusted for backend statuses
       default: return "secondary";
     }
@@ -107,15 +119,24 @@ const UserDashboard = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
-  // Show a loading or redirecting message if user is not yet loaded or being redirected
-  if (!user || !user.id) {
+  // --- Conditional Render: Loading State ---
+  // Display a loading message while the UserContext is determining authentication status
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-lg text-gray-700">
-        Loading user data or redirecting...
+        Loading user data...
       </div>
     );
   }
 
+  // --- Conditional Render: Not Authenticated (handled by useEffect, but a safeguard) ---
+  // If isLoading is false but isAuthenticated is also false, the useEffect above
+  // should have already redirected. This is a fallback/visual confirmation.
+  if (!isAuthenticated) {
+    return null; // Or a simple message like "Redirecting..." if you want.
+  }
+
+  // --- Main Dashboard Content (only renders if authenticated and loaded) ---
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -123,16 +144,11 @@ const UserDashboard = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <Link to="/">
-                <Button variant="ghost" size="sm">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Home
-                </Button>
-              </Link>
+              
               <h1 className="text-xl font-semibold">My Dashboard</h1>
             </div>
             <div className="flex items-center gap-4">
-            <Link to="/user/browse/stalls">
+              <Link to="/user/browse/stalls">
                 <Button className="bg-orange-600 hover:bg-orange-700">
                   <Search className="h-4 w-4 mr-2" />
                   Order Now
@@ -194,7 +210,7 @@ const UserDashboard = () => {
             </CardHeader>
             <CardContent>
               {/* This is still mock data; requires backend for dynamic favorites */}
-              <div className="text-2xl font-bold">2</div> 
+              <div className="text-2xl font-bold">2</div>
             </CardContent>
           </Card>
 
@@ -331,8 +347,6 @@ const UserDashboard = () => {
                           <p className="text-xs text-gray-500">
                             {new Date(order.orderDate).toLocaleDateString()}
                           </p>
-                          {/* Removed rating display as it's not directly in OrderDocument, 
-                              can be added if you implement a separate review system */}
                         </div>
                         <div className="flex items-center gap-4">
                           <span className="font-medium">₹{order.totalAmount.toFixed(2)}</span>
@@ -355,33 +369,7 @@ const UserDashboard = () => {
                 <CardTitle>Favorite Stalls</CardTitle>
               </CardHeader>
               <CardContent>
-                {/* This section still uses mockFavoriteStalls. You'll need backend API to make this dynamic. */}
                 <div className="grid gap-4">
-                  {/*
-                  {mockFavoriteStalls.map((stall) => (
-                    <div key={stall.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex-1">
-                        <h4 className="font-medium">{stall.name}</h4>
-                        <p className="text-sm text-gray-600">{stall.cuisine} Cuisine</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="flex items-center gap-1">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                            <span className="text-sm">{stall.rating}</span>
-                          </div>
-                          <span className="text-xs text-gray-500">Last ordered: {stall.lastOrdered}</span>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Link to={`/stall/${stall.id}`}>
-                          <Button size="sm">Order Again</Button>
-                        </Link>
-                        <Button size="sm" variant="outline">
-                          <Heart className="h-4 w-4" /> 
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                  */}
                   <div className="text-center text-gray-600 p-4">
                     Your favorite stalls will appear here! (Currently using mock data)
                   </div>
