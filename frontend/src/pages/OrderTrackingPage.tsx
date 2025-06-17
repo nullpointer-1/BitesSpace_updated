@@ -98,7 +98,6 @@ const OrderTrackingPage = () => {
     console.log(`Attempting WebSocket connection for order: ${paramOrderId}`);
 
     // Deactivate existing client if it exists to prevent multiple connections
-    // and if it's already connected to the *same* order, avoid re-activating.
     if (stompClient.current) {
         if (stompClient.current.connected) {
             console.log("STOMP client already connected, deactivating old one before new connection.");
@@ -225,7 +224,7 @@ const OrderTrackingPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
-              <Link to="/">
+              <Link to="/user/browse/stalls">
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back to Home
@@ -473,6 +472,7 @@ const OrderTrackingPage = () => {
           isOpen={isTicketModalOpen}
           onClose={() => setIsTicketModalOpen(false)}
           orderId={order.orderId}
+          shopId={order.shopId} // Pass shopId
           stallName={order.shopName}
         />
       )}
@@ -483,6 +483,7 @@ const OrderTrackingPage = () => {
           isOpen={isRatingModalOpen}
           onClose={() => setIsRatingModalOpen(false)}
           orderId={order.orderId}
+          shopId={order.shopId} // Pass shopId
           stallName={order.shopName}
         />
       )}
