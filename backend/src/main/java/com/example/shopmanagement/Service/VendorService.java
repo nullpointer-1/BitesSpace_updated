@@ -1,6 +1,5 @@
 package com.example.shopmanagement.Service;
 
-
 import com.example.shopmanagement.dto.CredentialDto;
 import com.example.shopmanagement.dto.LoginDto;
 import com.example.shopmanagement.dto.VendorDto;
@@ -8,7 +7,6 @@ import com.example.shopmanagement.model.Vendor;
 import com.example.shopmanagement.repository.VendorRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-//import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,125 +19,112 @@ import java.util.stream.Collectors;
 @Service
 public class VendorService {
 
-	@Autowired
-	private VendorRepository vendorRepository;
+    private final VendorRepository vendorRepository;
+    private final JwtService jwtService;
+    private final EmailService emailService;
 
-//	@Autowired
-//	private PasswordEncoder passwordEncoder;
+    @Autowired
+    public VendorService(VendorRepository vendorRepository, JwtService jwtService, EmailService emailService) {
+        this.vendorRepository = vendorRepository;
+        this.jwtService = jwtService;
+        this.emailService = emailService;
+    }
 
-	@Autowired
-	private JwtService jwtService;
+    @Transactional
+    public Vendor addIntoDb(CredentialDto dto) {
+        String email = dto.getEmail();
+        String userName = dto.getUsername();
+        String plainTextPassword = dto.getPassword();
 
-	@Autowired
-	private EmailService emailService;
+        Vendor vendor = this.getShopById(dto.getVendorId()) // This method name 'getShopById' seems misleading if it's returning a Vendor
+                .orElseThrow(() -> new RuntimeException("Vendor not found with ID: " + dto.getVendorId()));
 
-	public Vendor addIntoDb(CredentialDto dto) {
-		String email = dto.getEmail();
-		String userName = dto.getUsername();
-		String passWord = dto.getPassword();
-		Optional<Vendor> obj = this.getShopById(dto.getVendorId());
-		Vendor vendor = obj.orElseThrow(() -> new RuntimeException("Vendor not found"));
-		vendor.setEmail(email);
-		vendor.setUsername(userName);
-		vendor.setPassword(passWord);
-		String subject="Congratulations , your credentials in our cafeteria got generated!!";
-		String message= "The admin has generated the credentials for you /n "
-				+ "Your username is :"+userName +"/n" + "your current password is : "+ passWord;
-//		emailService.sendEmail(email,subject,message);
-		emailService.sendContactEmail(userName, email, message);
-//		System.out.println(vendor.getId() + " " + vendor.getName() + " " + vendor.getCreatedAt() + " " + vendor.getContactNumber());
-//		System.out.println(dto.getShopId() + " " + email + " " + userName + " " + passWord);
-		return vendorRepository.save(vendor);
-	}
+        vendor.setEmail(email);
+        vendor.setUsername(userName);
+        vendor.setPassword(plainTextPassword); // WARNING: Storing plain-text password is a security risk
 
-	public Optional<Vendor> getShopById(Long id) {
-		return vendorRepository.findById(id);
-	}
-	public ResponseEntity<?> login(LoginDto loginDto) {
-		Vendor vendor = vendorRepository.findByUsername(loginDto.getUsername())
-				.orElseThrow(() -> new RuntimeException("Invalid credentials"));
+        String subject = "Congratulations, your credentials for our cafeteria have been generated!";
+        String message = "Dear " + userName + ",\n\n"
+                        + "The admin has generated your credentials. "
+                        + "Your username is: " + userName + "\n"
+                        + "Your current password is: " + plainTextPassword + "\n\n"
+                        + "Please change your password after your first login for security reasons.\n\n"
+                        + "Thank you!";
 
-		// Validate password (either plain-text or password encoded)
-		if (!loginDto.getPassword().equals(vendor.getPassword())) {
-			throw new RuntimeException("Invalid credentials");
-		}
+        emailService.sendContactEmail(userName, email, message);
 
-		// Generate JWT token
-		String token = jwtService.generateToken(vendor.getUsername());
+        return vendorRepository.save(vendor);
+    }
 
-		// Prepare response
-		Map<String, Object> response = new HashMap<>();
-		response.put("token", token);
-		response.put("vendor", convertToDto(vendor));
-		System.out.println("Generated Token: " + token);
+  
+	 public Optional<Vendor> getShopById(Long id) {
+	        return vendorRepository.findById(id);
+	    }
 
+	// Renamed for clarity: This fetches a Vendor by ID, not a Shop.
+    public Optional<Vendor> getVendorEntityById(Long id) {
+        return vendorRepository.findById(id);
+    }
 
-		return ResponseEntity.ok(response); // Return token and vendor data
-	}
+    public ResponseEntity<?> login(LoginDto loginDto) {
+        Vendor vendor = vendorRepository.findByUsername(loginDto.getUsername())
+                .orElseThrow(() -> new RuntimeException("Invalid credentials"));
 
-//
-//	public VendorDto getCurrentVendor() {
-//		String username = jwtService.getCurrentUsername();
-//		return vendorRepository.findByUsername(username)
-//				.map(this::convertToDto)
-//				.orElseThrow(() -> new RuntimeException("Vendor not found"));
-//	}
+        if (!loginDto.getPassword().equals(vendor.getPassword())) { // WARNING: Direct plain-text comparison
+            throw new RuntimeException("Invalid credentials");
+        }
 
-	public List<VendorDto> getAllVendors() {
-		return vendorRepository.findAll().stream()
-				.map(this::convertToDto)
-				.collect(Collectors.toList());
-	}
+        String token = jwtService.generateToken(vendor.getUsername());
 
-	public VendorDto getVendorById(Long id) {
-		return vendorRepository.findById(id)
-				.map(this::convertToDto)
-				.orElseThrow(() -> new RuntimeException("Vendor not found"));
-	}
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", token);
+        response.put("vendor", convertToDto(vendor)); // Now this DTO will contain shopId
+        System.out.println("Generated Token: " + token);
 
+        return ResponseEntity.ok(response);
+    }
 
+    public List<VendorDto> getAllVendors() {
+        return vendorRepository.findAll().stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
 
+    public VendorDto getVendorById(Long id) {
+        return vendorRepository.findById(id)
+                .map(this::convertToDto)
+                .orElseThrow(() -> new RuntimeException("Vendor not found with ID: " + id));
+    }
 
-	@Transactional
-	public void deleteVendor(Long id) {
-		if (!vendorRepository.existsById(id)) {
-			throw new RuntimeException("Vendor not found");
-		}
-		vendorRepository.deleteById(id);
-	}
+    @Transactional
+    public void deleteVendor(Long id) {
+        if (!vendorRepository.existsById(id)) {
+            throw new RuntimeException("Vendor not found with ID: " + id);
+        }
+        vendorRepository.deleteById(id);
+    }
 
-//
-//	public Map<String, Object> getVendorStats() {
-//		String username = jwtService.getCurrentUsername();
-//		Vendor vendor = vendorRepository.findByUsername(username)
-//				.orElseThrow(() -> new RuntimeException("Vendor not found"));
-//
-//		Map<String, Object> stats = new HashMap<>();
-//		stats.put("totalProducts", 0); // Implement product count
-//		stats.put("pendingOrders", 0); // Implement pending orders count
-//		stats.put("completedToday", 0); // Implement completed orders count
-//		stats.put("todayRevenue", 0.0); // Implement today's revenue calculation
-//
-//		return stats;
-//	}
+    // Public helper method for converting Vendor entity to VendorDto
+    public VendorDto convertToDto(Vendor vendor) {
+        Long shopId = (vendor.getShop() != null) ? vendor.getShop().getId() : null; // Get shopId from associated shop
+        return new VendorDto(
+                vendor.getId(),
+                vendor.getName(),
+                vendor.getEmail(),
+                vendor.getUsername(),
+                null, // Password should not be exposed via DTO
+                vendor.getContactNumber(),
+                vendor.isActive(),
+                shopId // <--- PASS THE shopId HERE
+        );
+    }
 
-	private VendorDto convertToDto(Vendor vendor) {
-		return new VendorDto(
-				vendor.getId(),
-				vendor.getName(),
-				vendor.getEmail(),
-				vendor.getUsername(),
-				null, // Don't send password
-				vendor.getContactNumber(),
-				vendor.isActive()
-		);
-	}
-
-	private void updateVendorFromDto(Vendor vendor, VendorDto dto) {
-		vendor.setName(dto.getName());
-		vendor.setEmail(dto.getEmail());
-		vendor.setUsername(dto.getUsername());
-		vendor.setContactNumber(dto.getContactNumber());
-		vendor.setActive(dto.getActive());
-	}
+    private void updateVendorFromDto(Vendor vendor, VendorDto dto) {
+        vendor.setName(dto.getName());
+        vendor.setEmail(dto.getEmail());
+        vendor.setUsername(dto.getUsername());
+        vendor.setContactNumber(dto.getContactNumber());
+        vendor.setActive(dto.getActive());
+        // Do not update password or shopId via this generic update method unless intended
+    }
 }
