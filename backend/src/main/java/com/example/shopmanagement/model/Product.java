@@ -25,7 +25,7 @@ public class Product {
     private String description;
 
     @Column(nullable = false)
-    private Double price;
+    private Double price; // Changed to Double to match Product's current type
 
     @Column(nullable = false)
     private String category;
@@ -45,11 +45,22 @@ public class Product {
     @Column(nullable = false)
     private boolean available = true; // Default is true
 
+    // --- NEWLY ADDED FIELDS FROM ITEM CLASS ---
+    @Column(name = "is_keto_friendly")
+    private boolean isKetoFriendly; 
+
+    @Column(name = "is_high_protein")
+    private boolean isHighProtein;
+
+    @Column(name = "is_low_carb")
+    private boolean isLowCarb;
+    // --- END OF NEWLY ADDED FIELDS ---
+
     // --- CRITICAL CHANGE: Product now belongs to a SHOP ---
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shop_id", nullable = false)
     @JsonIgnore // <-- Add this annotation
-     private Shop shop; // A product belongs to one shop
+    private Shop shop; // A product belongs to one shop
 
     // --- Added timestamps for better data management (optional but good practice) ---
     @Column(name = "created_at", updatable = false)
@@ -69,111 +80,137 @@ public class Product {
         updatedAt = LocalDateTime.now();
     }
 
-	public Long getId() {
-		return id;
-	}
+    public Long getId() {
+        return id;
+    }
 
-	public void setId(Long id) {
-		this.id = id;
-	}
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-	public String getName() {
-		return name;
-	}
+    public String getName() {
+        return name;
+    }
 
-	public void setName(String name) {
-		this.name = name;
-	}
+    public void setName(String name) {
+        this.name = name;
+    }
 
-	public String getDescription() {
-		return description;
-	}
+    public String getDescription() {
+        return description;
+    }
 
-	public void setDescription(String description) {
-		this.description = description;
-	}
+    public void setDescription(String description) {
+        this.description = description;
+    }
 
-	public Double getPrice() {
-		return price;
-	}
+    public Double getPrice() {
+        return price;
+    }
 
-	public void setPrice(Double price) {
-		this.price = price;
-	}
+    public void setPrice(Double price) {
+        this.price = price;
+    }
 
-	public String getCategory() {
-		return category;
-	}
+    public String getCategory() {
+        return category;
+    }
 
-	public void setCategory(String category) {
-		this.category = category;
-	}
+    public void setCategory(String category) {
+        this.category = category;
+    }
 
-	public String getImageUrl() {
-		return imageUrl;
-	}
+    public String getImageUrl() {
+        return imageUrl;
+    }
 
-	public void setImageUrl(String imageUrl) {
-		this.imageUrl = imageUrl;
-	}
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
 
-	public Double getRating() {
-		return rating;
-	}
+    public Double getRating() {
+        return rating;
+    }
 
-	public void setRating(Double rating) {
-		this.rating = rating;
-	}
+    public void setRating(Double rating) {
+        this.rating = rating;
+    }
 
-	public String getPreparationTime() {
-		return preparationTime;
-	}
+    public String getPreparationTime() {
+        return preparationTime;
+    }
 
-	public void setPreparationTime(String preparationTime) {
-		this.preparationTime = preparationTime;
-	}
+    public void setPreparationTime(String preparationTime) {
+        this.preparationTime = preparationTime;
+    }
 
-	public boolean isVeg() {
-		return isVeg;
-	}
+    public boolean isVeg() {
+        return isVeg;
+    }
 
-	public void setVeg(boolean isVeg) {
-		this.isVeg = isVeg;
-	}
+    public void setVeg(boolean isVeg) {
+        this.isVeg = isVeg;
+    }
 
-	public boolean isAvailable() {
-		return available;
-	}
+    public boolean isAvailable() {
+        return available;
+    }
 
-	public void setAvailable(boolean available) {
-		this.available = available;
-	}
+    public void setAvailable(boolean available) {
+        this.available = available;
+    }
 
-	public Shop getShop() {
-		return shop;
-	}
+    // --- Getters and Setters for NEWLY ADDED FIELDS ---
+    public boolean isKetoFriendly() {
+        return isKetoFriendly;
+    }
 
-	public void setShop(Shop shop) {
-		this.shop = shop;
-	}
+    public void setKetoFriendly(boolean ketoFriendly) {
+        isKetoFriendly = ketoFriendly;
+    }
 
-	public LocalDateTime getCreatedAt() {
-		return createdAt;
-	}
+    public boolean isHighProtein() {
+        return isHighProtein;
+    }
 
-	public void setCreatedAt(LocalDateTime createdAt) {
-		this.createdAt = createdAt;
-	}
+    public void setHighProtein(boolean highProtein) {
+        isHighProtein = highProtein;
+    }
 
-	public LocalDateTime getUpdatedAt() {
-		return updatedAt;
-	}
+    public boolean isLowCarb() {
+        return isLowCarb;
+    }
 
-	public void setUpdatedAt(LocalDateTime updatedAt) {
-		this.updatedAt = updatedAt;
-	}
+    public void setLowCarb(boolean lowCarb) {
+        isLowCarb = lowCarb;
+    }
+    // --- END OF Getters and Setters for NEWLY ADDED FIELDS ---
 
-	public Product(Long id, String name, String description, Double price, String category, String imageUrl,
+    public Shop getShop() {
+        return shop;
+    }
+
+    public void setShop(Shop shop) {
+        this.shop = shop;
+    }
+
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+    
+    public Product(Long id, String name, String description, Double price, String category, String imageUrl,
 			Double rating, String preparationTime, boolean isVeg, boolean available, Shop shop, LocalDateTime createdAt,
 			LocalDateTime updatedAt) {
 		super();
@@ -191,10 +228,34 @@ public class Product {
 		this.createdAt = createdAt;
 		this.updatedAt = updatedAt;
 	}
-	public Product() {
-		
-	}
-	 public Long getShopId() {
-	        return (this.shop != null) ? this.shop.getId() : null;
-	    }
+
+    public Product(Long id, String name, String description, Double price, String category, String imageUrl,
+                   Double rating, String preparationTime, boolean isVeg, boolean available, 
+                   boolean isKetoFriendly, boolean isHighProtein, boolean isLowCarb, // Added new fields to constructor
+                   Shop shop, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        super();
+        this.id = id;
+        this.name = name;
+        this.description = description;
+        this.price = price;
+        this.category = category;
+        this.imageUrl = imageUrl;
+        this.rating = rating;
+        this.preparationTime = preparationTime;
+        this.isVeg = isVeg;
+        this.available = available;
+        this.isKetoFriendly = isKetoFriendly; // Initialize new fields
+        this.isHighProtein = isHighProtein;
+        this.isLowCarb = isLowCarb;
+        this.shop = shop;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
+    }
+
+    public Product() {
+    }
+
+    public Long getShopId() {
+        return (this.shop != null) ? this.shop.getId() : null;
+    }
 }
