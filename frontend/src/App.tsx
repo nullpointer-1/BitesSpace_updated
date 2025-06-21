@@ -3,8 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-
+import { AuthProvider } from "./context/AuthContext";
 // Import your page components
+import Login from "./pages/Login";
+import AdminDashboard from "./pages/AdminDashboard";
 import StallPage from "./pages/StallPage";
 import CartPage from "./pages/CartPage";
 import CheckoutPage from "./pages/CheckoutPage";
@@ -20,11 +22,11 @@ import SupportDashboard from "./pages/SupportDashboard";
 import DeliveryLoginPage from "./pages/DeliveryLoginPage";
 import DeliveryDashboard from "./pages/DeliveryDashboard";
 import Index from "./pages/Index"; // Assuming this is your Browse Stalls page
-
+import AdminIndex from "./pages/AdminIndex";
 // Import Context Providers
 import { CartProvider } from './context/CartContext';
 import { UserProvider, useUser } from './context/UserContext'; // Correct path to UserContext
-
+import ResetPassword from "./pages/ResetPassword";
 const queryClient = new QueryClient();
 
 // A Protected Route Wrapper
@@ -72,19 +74,29 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+      <AuthProvider>
         <UserProvider> {/* Wrap your entire application with UserProvider */}
           <CartProvider>
             <Routes>
               {/* Public routes */}
+              <Route path="/home" element={<AdminIndex />} />
               <Route path="/" element={<HomeOrDashboard />} /> {/* Decides between Dashboard and Browse Stalls */}
               <Route path="/login/user" element={<UserLoginPage />} />
               <Route path="/login/vendor" element={<VendorLoginPage />} />
               <Route path="/login/support" element={<SupportStaffLoginPage />} />
               <Route path="/login/delivery" element={<DeliveryLoginPage />} />
-
+              <Route path="/login/admin" element={<Login />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               {/* New route for Browse stalls */}
               <Route path="/user/browse/stalls" element={<Index />} />
-
+              <Route
+              path="/admin-dashboard/*"
+              element={
+                // <ProtectedRoute>
+                  <AdminDashboard />
+                // </ProtectedRoute>
+              }
+            />
               {/* Protected User Dashboard Route */}
               <Route
                 path="/dashboard"
@@ -103,7 +115,7 @@ const App = () => (
               <Route path="/order-tracking/:orderId" element={<OrderTrackingPage />} />
 
               {/* Vendor, Support, Delivery dashboards (consider adding specific protected routes for these roles) */}
-              <Route path="/vendor/dashboard" element={<VendorDashboard />} />
+              <Route path="/vendor-dashboard" element={<VendorDashboard />} />
               <Route path="/chat-support" element={<ChatSupportPage />} />
               <Route path="/support/dashboard" element={<SupportDashboard />} />
               <Route path="/delivery/dashboard" element={<DeliveryDashboard />} />
@@ -113,6 +125,7 @@ const App = () => (
             </Routes>
           </CartProvider>
         </UserProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
