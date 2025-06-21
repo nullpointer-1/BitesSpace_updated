@@ -31,13 +31,13 @@ public class ShopController {
     }
 
     // Create a new shop (food outlet) with a new vendor
-    @PostMapping
-    public ResponseEntity<ShopDto> createShop(@Valid @RequestBody ShopDto shopDto) {
-        Shop shop = shopDTOService.convertToEntity(shopDto); // Convert DTO to Entity
-        Shop createdShop = shopService.createShop(shop);
-        ShopDto responseDto = shopDTOService.convertToDTO(createdShop); // Convert back to DTO
-        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
-    }
+//    @PostMapping
+//    public ResponseEntity<ShopDto> createShop(@Valid @RequestBody ShopDto shopDto) {
+//        Shop shop = shopDTOService.convertToEntity(shopDto); // Convert DTO to Entity
+//        Shop createdShop = shopService.createShop(shop);
+//        ShopDto responseDto = shopDTOService.convertToDTO(createdShop); // Convert back to DTO
+//        return new ResponseEntity<>(responseDto, HttpStatus.CREATED);
+//    }
 
     // Get all shops (food outlets)
     @GetMapping
