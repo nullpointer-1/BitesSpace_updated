@@ -1,92 +1,45 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import axios from "axios"; // Import axios
+// src/pages/vendor/login.tsx
+import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Store, Eye, EyeOff } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+// Import the useAuth hook from your centralized context
+import { useAuth } from '@/context/AuthContext'; // Ensure this path is correct
 
 const VendorLoginPage = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState(""); // This is not used in your backend for login, but kept for consistency with frontend mock
-  const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
+  const [forgotEmail, setForgotEmail] = useState(""); // This is a mock for UI, not backend integrated
+
+  // Use the useAuth hook to access the login function and global loading state
+  const { login, isLoading: isAuthLoading } = useAuth(); // `isAuthLoading` indicates if *any* auth operation is ongoing
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const response = await axios.post("http://localhost:8989/api/vendors/login", {
-        username,
-        password,
-      });
-
-      // Assuming your backend returns { token: "...", vendor: { ... } } on success
-      const { token, vendor } = response.data;
-
-      if (token) {
-        // Store the token (e.g., in localStorage)
-        localStorage.setItem("vendorToken", token);
-        // Optionally store vendor details if needed in other parts of the app
-        localStorage.setItem("vendorDetails", JSON.stringify(vendor));
-
-        toast({
-          title: "Login Successful",
-          description: "Welcome back to your vendor dashboard!",
-        });
-        navigate("/vendor/dashboard"); // Navigate to the dashboard after successful login
-      } else {
-        toast({
-          title: "Login Failed",
-          description: "No token received. Please check credentials.",
-          variant: "destructive",
-        });
-      }
-    } catch (error: any) {
-      console.error("Login error:", error);
-      const errorMessage = error.response?.data?.message || "An unexpected error occurred during login.";
-      toast({
-        title: "Login Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // Call the centralized login function from AuthContext
+    // Pass 'vendor' as the userType argument
+    await login({ username, password }, 'vendor');
+    // Navigation and toast messages are handled internally by the AuthProvider after login
   };
 
-  const handleForgotPassword = async (e: React.FormEvent) => {
+  const handleForgotPassword = (e: React.FormEvent) => { // This is a simulated flow
     e.preventDefault();
-    setIsLoading(true);
-
-    // This part still uses a setTimeout as there's no backend endpoint for forgot password yet.
-    // If you implement a backend endpoint, replace this with an axios.post call.
-    setTimeout(() => {
-      if (forgotEmail) {
-        toast({
-          title: "Password Reset Email Sent",
-          description: "Check your email for password reset instructions.",
-        });
-        setShowForgotPassword(false);
-        setForgotEmail("");
-      } else {
-        toast({
-          title: "Error",
-          description: "Please enter your email.",
-          variant: "destructive",
-        });
-      }
-      setIsLoading(false);
-    }, 1000);
+    if (!forgotEmail) {
+      alert("Please enter your email."); // Consider replacing with your toast component for consistency
+      return;
+    }
+    // Simulate API call for forgot password (frontend only)
+    alert("Password reset email sent (simulated). Check your email for instructions.");
+    setShowForgotPassword(false);
+    setForgotEmail("");
   };
 
+  // Render the Forgot Password form if `showForgotPassword` is true
   if (showForgotPassword) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -114,8 +67,8 @@ const VendorLoginPage = () => {
                 />
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Sending..." : "Send Reset Link"}
+              <Button type="submit" className="w-full" disabled={isAuthLoading}> {/* Use global auth loading */}
+                {isAuthLoading ? "Sending..." : "Send Reset Link"}
               </Button>
 
               <Button
@@ -133,6 +86,7 @@ const VendorLoginPage = () => {
     );
   }
 
+  // Render the main Login form
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
@@ -186,8 +140,8 @@ const VendorLoginPage = () => {
               </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing In..." : "Sign In"}
+            <Button type="submit" className="w-full" disabled={isAuthLoading}>
+              {isAuthLoading ? "Signing In..." : "Sign In"}
             </Button>
 
             <div className="text-center">

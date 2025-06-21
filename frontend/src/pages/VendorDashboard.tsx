@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react"; // Removed useRef
+// src/pages/vendor/dashboard.tsx
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   Plus,
@@ -18,103 +19,28 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "@/hooks/use-toast"; // Assuming this is your Shadcn UI toast hook
 import AddItemModal from "@/components/vendor/AddItemModal";
 import OrderQueue from "@/components/vendor/OrderQueue";
 import VendorStats from "@/components/vendor/VendorStats";
 import QRCodeScanner from "@/components/vendor/QRCodeScanner";
 import { Client } from "@stomp/stompjs";
 import SockJS from 'sockjs-client';
+import axiosInstance from "@/api/axiosInstance"; // Use your configured axiosInstance
+import { useAuth, User } from '@/context/AuthContext'; // Import useAuth and the User type from AuthContext
 
-// ====================================================================
-// MOCK DATA AND INTERFACES (UNCHANGED - Ensure these are consistent with your backend)
-// ====================================================================
-
-const mockVendor = {
-  id: 1, // Assuming Long for vendorId in backend, ensure consistency
-  name: "Spice Paradise",
-  email: "vendor@spiceparadise.com",
-  username: "spiceparadise",
-  phone: "+91 98765 43210",
-  address: "Food Court, Mall Road, City Center",
-  isOnline: true,
-  rating: 4.5,
-  totalOrders: 1247,
-  totalRevenue: 89450,
-};
-
-const mockItems = [
-  {
-    id: 101,
-    name: "Chicken Biryani",
-    price: 299,
-    image:
-      "https://images.unsplash.com/photo-1563379091339-03246963d96c?w=300&h=200&fit=crop",
-    description: "Aromatic basmati rice with tender chicken pieces",
-    isVeg: false,
-    category: "Main Course",
-    isAvailable: true,
-    preparationTime: "25-30 min",
-  },
-  {
-    id: 102,
-    name: "Paneer Butter Masala",
-    price: 249,
-    image:
-      "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=300&h=200&fit=crop",
-    description: "Creamy tomato curry with soft paneer cubes",
-    isVeg: true,
-    category: "Main Course",
-    isAvailable: true,
-    preparationTime: "15-20 min",
-  },
-  {
-    id: 103,
-    name: "Vegetable Noodles",
-    price: 180,
-    image: "https://images.unsplash.com/photo-1606859183610-d007c6f0c793?w=300&h=200&fit=crop",
-    description: "Stir-fried noodles with fresh vegetables",
-    isVeg: true,
-    category: "Noodles",
-    isAvailable: true,
-    preparationTime: "20-25 min"
-  },
-  {
-    id: 104,
-    name: "Mutton Rogan Josh",
-    price: 450,
-    image: "https://images.unsplash.com/photo-1582298687367-3d3f2d2e1a3d?w=300&h=200&fit=crop",
-    description: "Rich and flavorful mutton curry from Kashmir",
-    isVeg: false,
-    category: "Main Course",
-    isAvailable: false, // Example: temporarily unavailable
-    preparationTime: "40-45 min"
-  }
-];
-
-interface VendorDetails {
-  id: number; // Keep as number if your backend Long maps to JS number
-  name: string;
-  email: string;
-  username: string;
-  phone?: string;
-  address?: string;
-  isOnline?: boolean;
-  rating?: number;
-  totalOrders?: number;
-  totalRevenue?: number;
-}
-
+// Interface for MenuItem (Product from backend)
 interface MenuItem {
-  id: number;
+  id: number; // Product ID (Long) from backend
   name: string;
   price: number;
-  image: string;
+  imageUrl: string;
   description: string;
   isVeg: boolean;
   category: string;
-  isAvailable: boolean;
+  isAvailable: boolean; // Field to control availability
   preparationTime: string;
+  shopId: number; // Crucial for backend association
 }
 
 interface Notification {
@@ -129,93 +55,114 @@ interface Notification {
 // ====================================================================
 
 const VendorDashboard = () => {
-  const [vendor, setVendor] = useState<VendorDetails | null>(null);
+  // Get user info and authentication state from AuthContext
+  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuth();
+  
+  // Use local state for UI-specific things not directly part of the AuthContext User,
+  // like the store's online status (which should probably be managed on the Shop entity backend).
+  const [isStoreOnline, setIsStoreOnline] = useState(false); // Initial mock state for store status
+
   const [items, setItems] = useState<MenuItem[]>([]);
   const [isAddItemModalOpen, setIsAddItemModalOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [menuError, setMenuError] = useState<string | null>(null);
 
-  // KEY CHANGE: Use useState for stompClient instead of useRef
   const [stompClient, setStompClient] = useState<Client | null>(null);
   const navigate = useNavigate();
 
-  // Effect to load vendor details from localStorage
+  // Effect to handle initial authentication check and redirect
   useEffect(() => {
-    const storedVendorDetails = localStorage.getItem("vendorDetails");
-    if (storedVendorDetails) {
-      try {
-        const parsedVendor: VendorDetails = JSON.parse(storedVendorDetails);
-        if (parsedVendor && parsedVendor.username) {
-          // Provide sensible defaults if some fields are missing from storage
-          setVendor({
-            ...parsedVendor,
-            id: parsedVendor.id || mockVendor.id,
-            name: parsedVendor.name || mockVendor.name,
-            email: parsedVendor.email || mockVendor.email,
-            phone: parsedVendor.phone || mockVendor.phone,
-            address: parsedVendor.address || mockVendor.address,
-            isOnline: parsedVendor.isOnline ?? mockVendor.isOnline, // Use nullish coalescing for boolean
-            rating: parsedVendor.rating || mockVendor.rating,
-            totalOrders: parsedVendor.totalOrders || mockVendor.totalOrders,
-            totalRevenue: parsedVendor.totalRevenue || mockVendor.totalRevenue,
-          });
-        } else {
-          toast({ title: "Authentication Error", description: "Vendor details incomplete. Please log in again.", variant: "destructive" });
-          localStorage.removeItem("vendorDetails");
-          navigate("/login/vendor");
-        }
-      } catch (error) {
-        console.error("Failed to parse vendor details from localStorage:", error);
-        toast({ title: "Session Error", description: "Corrupted vendor session. Please log in again.", variant: "destructive" });
-        localStorage.removeItem("vendorDetails");
+    if (!authLoading) { // Once authentication state has loaded
+      if (!isAuthenticated || !user || user.role !== 'Vendor') {
+        // If not authenticated, or not a vendor, redirect to vendor login
+        toast({ title: "Authentication Required", description: "Please log in as a vendor to access the dashboard.", variant: "destructive" });
         navigate("/vendor/login");
+      } else {
+        // Optionally fetch the actual store online status from backend here
+        // For now, it's just a mock initial state.
+        setIsStoreOnline(true); // Default to online for demo purposes
       }
-    } else {
-      toast({ title: "Authentication Required", description: "Please log in to access the dashboard.", variant: "destructive" });
-      navigate("/vendor/login");
     }
+  }, [isAuthenticated, user, authLoading, navigate]);
 
-    setItems(mockItems); // Still using mock data, replace with actual API call if ready
-    setNotifications([
-      { id: 1, message: "New order received - #ORD001", time: "2 min ago", isRead: false },
-      { id: 2, message: "Order #ORD002 completed", time: "15 min ago", isRead: true },
-      { id: 3, message: "Low stock alert for Chicken Biryani", time: "1 hour ago", isRead: false },
-    ]);
-  }, [navigate]);
+
+  // Effect to fetch menu items when user (from AuthContext) is available
+  useEffect(() => {
+    const fetchMenuItems = async () => {
+      // Use user.shopId from AuthContext as the primary ID for fetching products
+      const currentShopId = user?.shopId ?? user?.id; // Fallback to user.id if shopId isn't set (though it should be for a vendor)
+
+      if (!currentShopId) {
+        setMenuLoading(false);
+        console.log("Shop ID not available for menu item fetch. User:", user);
+        setMenuError("Could not determine shop ID to load menu items.");
+        return;
+      }
+
+      setMenuLoading(true);
+      setMenuError(null);
+      try {
+        // Use axiosInstance for authenticated requests
+        // Endpoint: /api/vendors/{shopId}/products (as per your VendorController)
+        const response = await axiosInstance.get<MenuItem[]>(`/vendors/${currentShopId}/products`);
+        setItems(response.data);
+      } catch (err: any) {
+        console.error("Error fetching menu items:", err);
+        setMenuError(err.response?.data?.message || "Failed to load menu items. Please try again.");
+        setItems([]); // Clear items on error
+      } finally {
+        setMenuLoading(false);
+      }
+    };
+
+    // Only fetch if user is authenticated and is a vendor
+    if (isAuthenticated && user?.role === 'Vendor') {
+      fetchMenuItems();
+    } else {
+      setMenuLoading(false); // If not authenticated or not a vendor, stop loading
+      setItems([]);
+    }
+    
+  }, [isAuthenticated, user?.shopId, user?.id, user?.role]); // Re-fetch when auth status or relevant user IDs change
 
   // Effect to manage WebSocket connection lifecycle
   useEffect(() => {
-    // Only attempt to connect if vendor details are loaded and stompClient isn't already active
-    if (!vendor?.username || !vendor?.id) {
-      console.log("Vendor username or ID not available for WebSocket connection yet. Waiting for state update...");
+    // Only connect if user is authenticated, is a vendor, and we have the necessary IDs
+    if (!isAuthenticated || !user || user.role !== 'Vendor' || !user.username || !user.id) {
+      console.log("User not authenticated, not a vendor, or missing details for WebSocket. Skipping connection.");
+      if (stompClient && stompClient.connected) {
+        stompClient.deactivate(); // Ensure old client is deactivated if user logs out
+        setStompClient(null);
+      }
       return;
     }
 
-    // Prevent creating multiple clients if one already exists and is active
+    // Prevent reconnecting if already connected for the same user
     if (stompClient && stompClient.connected) {
-      console.log("STOMP client already connected and active. Skipping new connection.");
+      console.log("STOMP client already connected and active for current user. Skipping new connection.");
       return;
     }
 
-    console.log(`Attempting WebSocket connection for vendor: ${vendor.username} (ID: ${vendor.id})`);
+    console.log(`Attempting WebSocket connection for vendor: ${user.username} (ID: ${user.id})`);
 
     const client = new Client({
-      brokerURL: "ws://localhost:8989/ws",
+      brokerURL: "ws://localhost:8989/ws", // Ensure this matches your backend WebSocket endpoint
       webSocketFactory: () => new SockJS("http://localhost:8989/ws"),
       debug: function (str) {
         // console.log("STOMP DEBUG:", str); // Uncomment for detailed STOMP logging
       },
-      reconnectDelay: 5000, // Attempt to reconnect every 5 seconds
+      reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
     });
 
     client.onConnect = () => {
-      console.log("Connected to WebSocket for vendor:", vendor.username);
-      // Set the connected client to state, which will trigger a re-render
+      console.log("Connected to WebSocket for vendor:", user.username);
       setStompClient(client);
 
-      // Subscribe to general notifications for this vendor
-      client.subscribe(`/topic/notifications/${vendor.username}`, (message) => {
+      // Subscribe to vendor-specific notifications using username
+      client.subscribe(`/topic/notifications/${user.username}`, (message) => {
         const newNotification = JSON.parse(message.body);
         console.log("New notification received via WebSocket:", newNotification);
         toast({ title: "New Notification!", description: newNotification.message, variant: "info" });
@@ -224,91 +171,143 @@ const VendorDashboard = () => {
           ...prev,
         ]);
       });
-      // OrderQueue component will handle its own subscription for /topic/orders/${vendorUsername}
+      // Mock initial notifications (replace with actual fetch if backend provides them)
+      setNotifications([
+        { id: 1, message: "New order received - #ORD001", time: "2 min ago", isRead: false },
+        { id: 2, message: "Order #ORD002 completed", time: "15 min ago", isRead: true },
+        { id: 3, message: "Low stock alert for Chicken Biryani", time: "1 hour ago", isRead: false },
+      ]);
     };
 
     client.onStompError = (frame) => {
       console.error("Broker reported STOMP error:", frame.headers["message"]);
       console.error("Additional STOMP details:", frame.body);
       toast({ title: "WebSocket Error", description: "Could not connect to real-time updates. Please refresh.", variant: "destructive" });
-      setStompClient(null); // Reset client state on STOMP error
+      setStompClient(null);
     };
 
     client.onWebSocketClose = (event) => {
       console.log("WebSocket closed:", event);
-      setStompClient(null); // Reset client state on WebSocket close
+      setStompClient(null);
       toast({ title: "WebSocket Disconnected", description: "Real-time updates interrupted. Attempting to reconnect...", variant: "warning" });
     };
 
     client.onWebSocketError = (event) => {
       console.error("WebSocket error:", event);
-      setStompClient(null); // Reset client state on WebSocket error
+      setStompClient(null);
       toast({ title: "WebSocket Error", description: "Real-time connection error. Please check network.", variant: "destructive" });
     };
 
-    client.activate(); // Start the connection process
+    client.activate();
 
-    // Cleanup function: deactivate the client when component unmounts or dependencies change
     return () => {
+      // Cleanup: deactivate STOMP client when component unmounts or dependencies change
       if (client.connected) {
-        client.deactivate(); // Deactivate the local 'client' instance created in this effect run
-        console.log("Deactivating STOMP client for vendor:", vendor.username);
+        client.deactivate();
+        console.log("Deactivating STOMP client for vendor:", user.username);
       }
-      // Ensure the state is reset even if deactivate fails or doesn't complete immediately
       setStompClient(null);
     };
-  }, [vendor?.username, vendor?.id]); // Re-run effect if vendor username or ID changes
-
-  // ... (rest of your component functions remain unchanged) ...
+  }, [isAuthenticated, user?.username, user?.id, user?.role]); // Re-connect WebSocket if auth status or relevant user IDs change
 
   const toggleStoreStatus = () => {
-    if (!vendor) return; // Prevent action if vendor is null
-    setVendor((prev) => (prev ? { ...prev, isOnline: !prev.isOnline } : null));
+    // This is a mock UI toggle. For persistence, you need a backend API endpoint
+    // to update the shop's online status.
+    setIsStoreOnline((prev) => !prev);
     toast({
-      title: vendor.isOnline ? "Store Closed" : "Store Opened",
-      description: vendor.isOnline
+      title: isStoreOnline ? "Store Closed" : "Store Opened",
+      description: isStoreOnline
         ? "Your store is now offline and won't receive new orders"
         : "Your store is now online and ready to receive orders",
     });
-    // In a real app, you'd send an API call to update the backend here
   };
 
-  const toggleItemAvailability = (itemId: number) => {
-    setItems((prev) =>
-      prev.map((item) =>
-        item.id === itemId ? { ...item, isAvailable: !item.isAvailable } : item
-      )
-    );
-    toast({
-      title: "Item Updated",
-      description: "Item availability has been updated",
-    });
-    // In a real app, you'd send an API call to update the backend here
+  const toggleItemAvailability = async (itemId: number, currentAvailability: boolean) => {
+    // Ensure the current user is a vendor and has an ID
+    if (!user || user.role !== 'Vendor' || !user.id) {
+        toast({ title: "Error", description: "Authentication error: User is not a valid vendor.", variant: "destructive" });
+        return;
+    }
+    try {
+        // Assuming your backend has a PUT endpoint like /api/products/{productId}/availability
+        await axiosInstance.put(`/products/${itemId}/availability`, { isAvailable: !currentAvailability });
+        setItems((prev) =>
+            prev.map((item) =>
+                item.id === itemId ? { ...item, isAvailable: !currentAvailability } : item
+            )
+        );
+        toast({
+            title: "Item Updated",
+            description: `Item availability changed to ${!currentAvailability ? "Available" : "Unavailable"}.`,
+            variant: "success",
+        });
+    } catch (error: any) {
+        console.error("Error toggling item availability:", error);
+        toast({
+            title: "Update Failed",
+            description: error.response?.data?.message || "Failed to update item availability.",
+            variant: "destructive",
+        });
+    }
   };
 
-  const handleAddItem = (newItem: any) => {
-    const item = {
-      ...newItem,
-      id: Date.now(), // Generate a unique ID for mock data
-      isAvailable: true,
-      image: newItem.image || "https://via.placeholder.com/300x200?text=Food+Item", // Fallback image
-    };
-    setItems((prev) => [...prev, item]);
-    setIsAddItemModalOpen(false);
-    toast({
-      title: "Item Added",
-      description: "New item has been added to your menu",
-    });
-    // In a real app, you'd send an API call to the backend (e.g., POST /api/vendors/{vendorId}/products)
+  const handleAddItem = async (newItemData: Omit<MenuItem, 'id' | 'isAvailable' | 'shopId' | 'imageUrl'> & { image: string }) => {
+    // Use user.shopId from AuthContext as the primary ID for associating the product
+    const currentShopId = user?.shopId ?? user?.id; 
+
+    if (!currentShopId) {
+        toast({ title: "Error", description: "Shop ID not found for adding item. Please ensure vendor is associated with a shop.", variant: "destructive" });
+        return;
+    }
+    try {
+        const itemToCreate = {
+            ...newItemData,
+            imageUrl: newItemData.image, // Map 'image' from modal to 'imageUrl' for backend
+            shopId: currentShopId, // Associate with the current vendor's shop
+            isAvailable: true, // New items are available by default
+        };
+        // Assuming your backend has a POST endpoint like /api/products
+        const response = await axiosInstance.post<MenuItem>("/products", itemToCreate);
+        setItems((prev) => [...prev, response.data]); // Add the item returned by the backend (with actual ID)
+        setIsAddItemModalOpen(false);
+        toast({
+            title: "Item Added",
+            description: `${response.data.name} has been added to your menu.`,
+            variant: "success",
+        });
+    } catch (error: any) {
+        console.error("Error adding item:", error);
+        toast({
+            title: "Add Item Failed",
+            description: error.response?.data?.message || "Failed to add new item.",
+            variant: "destructive",
+        });
+    }
   };
 
-  const deleteItem = (itemId: number) => {
-    setItems((prev) => prev.filter((item) => item.id !== itemId));
-    toast({
-      title: "Item Deleted",
-      description: "Item has been removed from your menu",
-    });
-    // In a real app, you'd send an API call to the backend (e.g., DELETE /api/vendors/{vendorId}/products/{productId})
+  const deleteItem = async (itemId: number) => {
+    // Ensure the current user is a vendor and has an ID
+    if (!user || user.role !== 'Vendor' || !user.id) {
+        toast({ title: "Error", description: "Authentication error: User is not a valid vendor.", variant: "destructive" });
+        return;
+    }
+    try {
+        // Assuming your backend has a DELETE endpoint like /api/products/{productId}
+        await axiosInstance.delete(`/products/${itemId}`);
+        setItems((prev) => prev.filter((item) => item.id !== itemId));
+        toast({
+            title: "Item Deleted",
+            description: "Item has been removed from your menu.",
+            variant: "success",
+        });
+    } catch (error: any) {
+        console.error("Error deleting item:", error);
+        toast({
+            title: "Delete Failed",
+            description: error.response?.data?.message || "Failed to delete item.",
+            variant: "destructive",
+        });
+    }
   };
 
   const handleQRScanSuccess = (orderId: string) => {
@@ -318,19 +317,34 @@ const VendorDashboard = () => {
       description: `Order ${orderId} has been verified via QR code`,
     });
     // In a real app, you'd send an API call to your backend to mark the order as delivered/completed
+    // Example: axiosInstance.put(`/orders/${orderId}/status`, { newStatus: "COMPLETED", vendorId: user.id });
   };
 
   const unreadNotifications = notifications.filter((n) => !n.isRead).length;
 
-  // Render a loading state if vendor details aren't loaded yet
-  if (!vendor) {
+  // Handle global loading state from AuthContext (e.g., initial auth check)
+  if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        Loading vendor dashboard...
+        <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p>Loading dashboard...</p>
+        </div>
       </div>
     );
   }
 
+  // If not authenticated or not a vendor, show access denied.
+  // The useEffect above will also handle the redirect.
+  if (!isAuthenticated || !user || user.role !== 'Vendor') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-red-500">
+        Access Denied. Please log in as a vendor.
+      </div>
+    );
+  }
+
+  // Render the dashboard only if authenticated as a vendor
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
@@ -340,20 +354,21 @@ const VendorDashboard = () => {
               <h1 className="text-2xl font-bold text-gray-900">
                 Vendor Dashboard for{" "}
                 <span className="text-orange-600">
-                  {vendor.username}
+                  {user.username} {/* Use user.username from AuthContext */}
                 </span>{" "}
               </h1>
-              <Badge variant={vendor.isOnline ? "default" : "secondary"}>
-                {vendor.isOnline ? "Online" : "Offline"}
+              {/* `isStoreOnline` is now local state in VendorDashboard */}
+              <Badge variant={isStoreOnline ? "default" : "secondary"} className={isStoreOnline ? "bg-green-600" : ""}>
+                {isStoreOnline ? "Online" : "Offline"}
               </Badge>
             </div>
 
             <div className="flex items-center gap-4">
               <Button
-                variant={vendor.isOnline ? "destructive" : "default"}
+                variant={isStoreOnline ? "destructive" : "default"}
                 onClick={toggleStoreStatus}
               >
-                {vendor.isOnline ? "Close Store" : "Open Store"}
+                {isStoreOnline ? "Close Store" : "Open Store"}
               </Button>
 
               <div className="relative">
@@ -367,19 +382,19 @@ const VendorDashboard = () => {
                 </Button>
               </div>
 
-              <Link to="/login/vendor">
-                <Button variant="outline" size="sm">
-                  <Eye className="h-4 w-4 mr-2" />
-                  Log out
-                </Button>
-              </Link>
+              {/* Use the logout function from AuthContext */}
+              <Button variant="outline" size="sm" onClick={logout}>
+                <Eye className="h-4 w-4 mr-2" />
+                Log out
+              </Button>
             </div>
           </div>
         </div>
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <VendorStats vendor={vendor} />
+        {/* Pass AuthContext's user to VendorStats */}
+        {user && <VendorStats vendor={user} />}
 
         <Tabs defaultValue="orders" className="mt-8">
           <TabsList className="grid w-full grid-cols-5">
@@ -391,15 +406,14 @@ const VendorDashboard = () => {
           </TabsList>
 
           <TabsContent value="orders" className="mt-6">
-            {/* Pass stompClient (now from state), vendorUsername, and vendorId to OrderQueue */}
-            {vendor.username && vendor.id ? (
+            {user?.username && user?.id ? (
               <OrderQueue
-                stompClient={stompClient} // THIS IS THE UPDATED PROP!
-                vendorUsername={vendor.username}
-                vendorId={vendor.id}
+                stompClient={stompClient}
+                vendorUsername={user.username}
+                vendorId={user.id}
+                shopId={user.shopId} // Pass shopId if relevant for orders
               />
             ) : (
-              // This message will show briefly while vendor data loads or if it fails
               <p className="text-center text-gray-500">Loading order queue...</p>
             )}
           </TabsContent>
@@ -419,75 +433,84 @@ const VendorDashboard = () => {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {items.map((item) => (
-                <Card key={item.id} className="overflow-hidden">
-                  <div className="relative">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-48 object-cover"
-                    />
-                    <Badge
-                      className={`absolute top-3 left-3 ${
-                        item.isVeg ? "bg-green-600" : "bg-red-600"
-                      }`}
-                    >
-                      {item.isVeg ? "Veg" : "Non-Veg"}
-                    </Badge>
-                    <Badge
-                      className={`absolute top-3 right-3 ${
-                        item.isAvailable ? "bg-green-600" : "bg-gray-500"
-                      }`}
-                    >
-                      {item.isAvailable ? "Available" : "Unavailable"}
-                    </Badge>
-                  </div>
-                  <CardContent className="p-4">
-                    <h4 className="text-lg font-semibold mb-2">
-                      {item.name}
-                    </h4>
-                    <p className="text-gray-600 text-sm mb-3">
-                      {item.description}
-                    </p>
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-xl font-bold text-orange-600">
-                        ₹{item.price}
-                      </span>
-                      <span className="text-sm text-gray-500">
-                        {item.preparationTime}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => toggleItemAvailability(item.id)}
-                        className="flex-1"
-                      >
-                        {item.isAvailable ? (
-                          <XCircle className="h-4 w-4 mr-1" />
-                        ) : (
-                          <CheckCircle className="h-4 w-4 mr-1" />
-                        )}
-                        {item.isAvailable ? "Disable" : "Enable"}
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => deleteItem(item.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {menuLoading ? (
+                <div className="text-center text-gray-600 py-10">Loading menu items...</div>
+            ) : menuError ? (
+                <div className="text-center text-red-600 py-10">{menuError}</div>
+            ) : items.length === 0 ? (
+                <div className="text-center text-gray-600 py-10">No menu items found. Add your first item!</div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {items.map((item) => (
+                    <Card key={item.id} className="overflow-hidden">
+                      <div className="relative">
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="w-full h-48 object-cover"
+                          onError={(e) => { e.currentTarget.src = "https://placehold.co/300x200/cccccc/333333?text=No+Image"; }}
+                        />
+                        <Badge
+                          className={`absolute top-3 left-3 ${
+                            item.isVeg ? "bg-green-600" : "bg-red-600"
+                          }`}
+                        >
+                          {item.isVeg ? "Veg" : "Non-Veg"}
+                        </Badge>
+                        <Badge
+                          className={`absolute top-3 right-3 ${
+                            item.isAvailable ? "bg-green-600" : "bg-gray-500"
+                          }`}
+                        >
+                          {item.isAvailable ? "Available" : "Unavailable"}
+                        </Badge>
+                      </div>
+                      <CardContent className="p-4">
+                        <h4 className="text-lg font-semibold mb-2">
+                          {item.name}
+                        </h4>
+                        <p className="text-gray-600 text-sm mb-3">
+                          {item.description}
+                        </p>
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-xl font-bold text-orange-600">
+                            ₹{item.price}
+                          </span>
+                          <span className="text-sm text-gray-500">
+                            {item.preparationTime}
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => toggleItemAvailability(item.id, item.isAvailable)}
+                            className="flex-1"
+                          >
+                            {item.isAvailable ? (
+                              <XCircle className="h-4 w-4 mr-1" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                            )}
+                            {item.isAvailable ? "Disable" : "Enable"}
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <Edit className="h-4 w-4" /> {/* Edit Item functionality to be implemented */}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => deleteItem(item.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+            )}
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-6">
