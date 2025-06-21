@@ -122,4 +122,8 @@ public class AddProductRequest {
 
     // CRITICAL: The shopId to associate this product with
     private Long shopId;
+    
+    public AddProductRequest() {
+    	
+    }
 }

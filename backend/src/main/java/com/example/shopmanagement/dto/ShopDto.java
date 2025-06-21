@@ -33,7 +33,9 @@ public class ShopDto {
 		this.vendorPassword = vendorPassword;
 		this.vendorContactNumber = vendorContactNumber;
 	}
-
+    public ShopDto() {
+        // This is the no-argument constructor that Jackson needs
+    }
 	private Long id; // ID is usually Long for SQL entities
     private String name;
     private String address; // Matches the 'address' in frontend and model

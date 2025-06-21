@@ -74,4 +74,7 @@ public class CredentialDto {
     
     @NotBlank(message = "Contact number is required")
     private String contactNumber;
+    public CredentialDto() {
+    	
+    }
 }
