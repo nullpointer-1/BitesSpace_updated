@@ -14,6 +14,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class Shop {
 
+	
     public Long getId() {
 		return id;
 	}
@@ -162,7 +163,7 @@ public class Shop {
     private boolean active;
 
     @OneToOne(cascade = CascadeType.ALL) // Correct for One-to-One relationship in SQL
-    @JoinColumn(name = "vendor_id", referencedColumnName  = "id") // Links to vendor's ID column
+    @JoinColumn(name = "vendor_id", referencedColumnName  = "id")// Links to vendor's ID column
     private Vendor vendor; // One shop has one vendor
 
     // --- New fields to match frontend's 'foodStalls' structure ---

@@ -120,7 +120,6 @@ public class Vendor {
     @OneToOne(mappedBy = "vendor")
     private Shop shop;
 
-
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
