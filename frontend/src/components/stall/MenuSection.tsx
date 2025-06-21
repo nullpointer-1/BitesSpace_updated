@@ -1,17 +1,21 @@
-
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import FoodItem from "./FoodItem";
+import FoodItem from "./FoodItem"; // Ensure this import path is correct
 
+// Matches your ProductDTO (MenuItem interface with dietary flags)
 interface MenuItem {
   id: number;
   name: string;
   price: number;
-  image: string;
+  imageUrl: string; // Changed from 'image' to 'imageUrl' to match backend DTO
   description: string;
   isVeg: boolean;
   category: string;
   rating: number;
   preparationTime: string;
+  isKetoFriendly: boolean; // Dietary flag
+  isLowCarb: boolean;      // Dietary flag
+  isHighProtein: boolean;  // Dietary flag
+  shopId: number;
 }
 
 interface MenuSectionProps {
@@ -23,18 +27,18 @@ interface MenuSectionProps {
   onRemoveFromCart: (itemId: number) => void;
 }
 
-const MenuSection = ({ 
-  items, 
-  filter, 
-  onFilterChange, 
-  cart, 
-  onAddToCart, 
-  onRemoveFromCart 
+const MenuSection = ({
+  items,
+  filter,
+  onFilterChange,
+  cart,
+  onAddToCart,
+  onRemoveFromCart,
 }: MenuSectionProps) => {
   const filteredItems = items.filter((item) => {
     if (filter === "veg") return item.isVeg;
     if (filter === "non-veg") return !item.isVeg;
-    return true;
+    return true; // "all" filter
   });
 
   return (

@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import {
   Dialog,
@@ -20,37 +19,37 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Ticket, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import axios from "axios"; // Import axios
+import { useUser } from "@/context/UserContext"; // Import useUser to get userId
 
 interface RaiseTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
-  orderId: string;
+  orderId: string; // The custom UUID orderId
+  shopId: number; // The shopId from the OrderData
   stallName: string;
 }
 
 const ticketTypes = [
   { value: "food-quality", label: "Food Quality Issue" },
   { value: "wrong-order", label: "Wrong Order Received" },
-  { value: "delivery-delay", label: "Delivery Delay" },
+  { value: "delivery-delay", label: "Delivery Delay" }, // Note: Your current app is pickup, so this might be less relevant unless you add delivery.
   { value: "missing-items", label: "Missing Items" },
   { value: "refund", label: "Refund Request" },
   { value: "other", label: "Other Issue" },
 ];
 
-const RaiseTicketModal = ({ isOpen, onClose, orderId, stallName }: RaiseTicketModalProps) => {
+const RaiseTicketModal = ({ isOpen, onClose, orderId, shopId, stallName }: RaiseTicketModalProps) => {
+  const { user } = useUser(); // Get user from context
   const [ticketType, setTicketType] = useState("");
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [ticketCreated, setTicketCreated] = useState(false);
-  const [ticketId, setTicketId] = useState("");
-
-  const generateTicketId = () => {
-    return `TKT${Date.now().toString().slice(-6)}`;
-  };
+  const [ticketId, setTicketId] = useState(""); // This will come from backend response
 
   const handleSubmitTicket = async () => {
-    if (!ticketType || !subject || !description) {
+    if (!ticketType || !subject.trim() || !description.trim()) { // Added trim() validation
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -59,24 +58,53 @@ const RaiseTicketModal = ({ isOpen, onClose, orderId, stallName }: RaiseTicketMo
       return;
     }
 
+    if (!user || !user.id) {
+        toast({
+            title: "Authentication Required",
+            description: "Please log in to raise a ticket.",
+            variant: "destructive",
+        });
+        return;
+    }
+
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      const newTicketId = generateTicketId();
-      setTicketId(newTicketId);
-      setTicketCreated(true);
-      
-      toast({
-        title: "Ticket Created Successfully",
-        description: `Your ticket #${newTicketId} has been submitted.`,
-      });
-      
-      setIsSubmitting(false);
-    }, 1000);
+    try {
+        const payload = {
+            orderId: orderId,
+            userId: Number(user.id), // Convert to number for backend (assuming Long)
+            shopId: shopId,
+            ticketType: ticketType,
+            subject: subject.trim(),
+            description: description.trim()
+        };
+
+        const response = await axios.post("http://localhost:8989/api/tickets/raise", payload);
+        
+        // Assuming backend returns the generated ticket ID
+        const newTicketId = response.data.ticketId; 
+        setTicketId(newTicketId);
+        setTicketCreated(true);
+        
+        toast({
+            title: "Ticket Created Successfully",
+            description: `Your ticket #${newTicketId} has been submitted. We will get back to you soon.`,
+            variant: "success",
+        });
+    } catch (error: any) {
+        console.error("Error raising ticket:", error);
+        toast({
+            title: "Ticket Submission Failed",
+            description: error.response?.data || "Failed to raise your ticket. Please try again.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
+    // Reset state when modal is closed
     setTicketType("");
     setSubject("");
     setDescription("");
@@ -179,6 +207,7 @@ const RaiseTicketModal = ({ isOpen, onClose, orderId, stallName }: RaiseTicketMo
               placeholder="Brief description of the issue"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
+              required
             />
           </div>
 
@@ -190,6 +219,7 @@ const RaiseTicketModal = ({ isOpen, onClose, orderId, stallName }: RaiseTicketMo
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
+              required
             />
           </div>
 

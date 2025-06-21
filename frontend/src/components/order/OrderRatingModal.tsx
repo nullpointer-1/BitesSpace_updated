@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import {
   Dialog,
@@ -11,15 +10,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Star, MessageSquare } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import axios from "axios"; // Import axios
+import { useUser } from "@/context/UserContext"; // Import useUser to get userId
 
 interface OrderRatingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  orderId: string;
+  orderId: string; // The custom UUID orderId
+  shopId: number; // The shopId from the OrderData
   stallName: string;
 }
 
-const OrderRatingModal = ({ isOpen, onClose, orderId, stallName }: OrderRatingModalProps) => {
+const OrderRatingModal = ({ isOpen, onClose, orderId, shopId, stallName }: OrderRatingModalProps) => {
+  const { user } = useUser(); // Get user from context
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [review, setReview] = useState("");
@@ -35,17 +38,44 @@ const OrderRatingModal = ({ isOpen, onClose, orderId, stallName }: OrderRatingMo
       return;
     }
 
+    if (!user || !user.id) {
+        toast({
+            title: "Authentication Required",
+            description: "Please log in to submit a rating.",
+            variant: "destructive",
+        });
+        return;
+    }
+
     setIsSubmitting(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      toast({
-        title: "Thank You!",
-        description: "Your rating has been submitted successfully.",
-      });
-      setIsSubmitting(false);
-      onClose();
-    }, 1000);
+    try {
+        const payload = {
+            orderId: orderId,
+            userId: Number(user.id), // Convert to number for backend (assuming Long)
+            shopId: shopId,
+            rating: rating,
+            review: review.trim() // Send trimmed review, or null if empty
+        };
+
+        const response = await axios.post("http://localhost:8989/api/ratings/submit", payload);
+        
+        toast({
+            title: "Thank You!",
+            description: "Your rating has been submitted successfully.",
+            variant: "success",
+        });
+        onClose(); // Close modal on success
+    } catch (error: any) {
+        console.error("Error submitting rating:", error);
+        toast({
+            title: "Rating Submission Failed",
+            description: error.response?.data || "Failed to submit your rating. Please try again.",
+            variant: "destructive",
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const renderStars = () => {
